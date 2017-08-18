@@ -31,3 +31,6 @@ kitty.save( err => {
 })
 ```
 
+## 开始 Mongoose 之旅
+
+- [快速入门](docs/index.md)
