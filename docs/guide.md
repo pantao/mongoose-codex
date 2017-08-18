@@ -682,4 +682,4 @@ Parent.update({}, { 'child.name': 'Luke Skywalker' }, function(error) {
 
 ## 接下来
 
-我们来了解一下 [SchemaTypes](schematypes.md)
+我们来了解一下 [SchemaTypes](schema-types.md)
