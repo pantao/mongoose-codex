@@ -48,5 +48,5 @@ Mongoose 允许使用的 `SchemaType` 有：
 - `ObjectId`：MongoDB ObjectId
 - `Array`：数组
 
-更多详情，可以阅读 [SchemaTypes](schema-types.md) 文档。
+更多详情，可以阅读 [SchemaTypes](schematypes.md) 文档。
 
