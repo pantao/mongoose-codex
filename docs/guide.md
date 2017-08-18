@@ -307,6 +307,7 @@ schema.set(option, value)
 可以的配置选项有：
 
 - `autoIndex`
+- `bufferCommands`
 - `capped`
 - `collection`
 - `emitIndexErrors`
@@ -325,3 +326,360 @@ schema.set(option, value)
 - `skipVersioning`
 - `timestamps`
 - `retainKeyOrder`
+
+#### option: autoIndex
+
+当应用启动之后，Mongoose 会为每一个 Shema 的 `index` 声明发送一个 `ensureIndex` 命令至数据库，从 `Mongoose v3` 开始，`indexes` 的的创建默认都被设定为后台任务，如果你想禁用自动创建索引的功能而改用手动创建，那可以设置 `autoIndex` 这个选项：
+
+```javascript
+const FooSchema = new Schema({...}, {autoIndex: false})
+const Foo = Mongoose.model('Foo', FooSchema)
+Foo.ensureIndexes(callback)
+```
+
+#### option: bufferCommands
+
+默认的，当与数据库的连接断掉之后，数据库驱动在尝试重新连接互数据库的过程中，Mongoose 会先将所有的命令都缓冲起来，当连接重新建立之后，再真实的发送这些命令，如果要关闭这个功能，可以直接设置 `bufferCommands` 功能即可：
+
+```javascript
+const FooSchema = new Schema({...}, {bufferCommands: false})
+```
+
+#### option: capped
+
+Mongoose 支持 MongoDB 的定容集合（Capped Colleciton），你可以直接通过设置 `capped` 属性为一个以 `bytes` 为单位的数字即可;
+
+```javascript
+const FooSchema = new Schema({...}, {capped: 1024})
+```
+
+同样的，你还可以设置 `capped` 为一个对象，此时就必须设置 `size` 属性：
+
+```javascript
+const FooSchema = new Schema({...}, {capped: {size: 1024, max: 1000, autoIndex: true}})
+```
+
+#### option: collection
+
+默认的，Mongoose 会使用 `utils.toCollectionName` 方法获取一个自动根据名称转换得到的集合名称，如果你想使用一个自定义的名称，可以使用该配置选项设置：
+
+```javascript
+const FooSchema = new Schema({...}, {collection: 'bar'})
+```
+
+#### option: emitIndexErrors
+
+默认的，Mongoose 会在创建索引成功或者失败时，都 `emit` 一个 `index` 事件，如果你想如果 `index` 事件外，在产生错误时， `emit` 一个 `error` 事件，那么可以设置该选项为 `true`
+
+```javascript
+MyModel.schema.options.emitIndexErrors // true
+MyModel.on('error', error => {
+  console.log(error) // 当 index 创建失败时，这里会被执行
+})
+```
+
+#### option: id
+
+Mongoose 会自动的为每一个文档创建一个 `id` 虚拟属性，映射至 `_id` 字段，该字段只允许被 `get` 不允许被 `set`。如果要禁该功能，设置 `id` 选项为 `false` 即可：
+
+```javascript
+// 默认行为
+const FooSchema = new Schema({
+  name: String
+})
+
+const Foo = Mongoose.model('Foo', FooSchema)
+const foo = new Foo({
+  name: 'Mongoose'
+})
+console.log(foo.id) // 50341373e894ad16347efe01
+
+// 禁用 id 后的行为
+const BarSchema = new Schema({
+  name: String
+})
+
+const Bar = Mongoose.model('Bar', BarSchema)
+const bar = new Bar({
+  name: 'Mongoose'
+})
+console.log(bar.id) // undefined
+```
+
+#### option: _id
+
+默认的，Mongoose 会为每一个 Schema 都添加一个 `_id` 属性，类型为 `ObjectID` 类型，如果你不想使用这个功能，那么可以禁用它，但是你 **仅能在子文档中禁用该功能**，因为Mongoose无法保存一个没有索引键的文档：
+
+```javascript
+// 默认行为
+const PageSchema = new Schema({title: String})
+const Page = Mongoose.model('Page', PageSchema)
+const page = new Page({
+  title: 'Default Behavior'
+})
+
+console.log(page) // {_id: '50341373e894ad16347efe01', title: 'Default Behavior'}
+
+// 禁用
+const CommentSchema = new Schema({subject: String}, {_id: false})
+const PageSchema = new Schema({title: String, comments: [CommentSchema]})
+const Page = Mongoose.model('Page', PageSchema)
+
+const page = new Page({
+  title: 'Disabled',
+  comments: [
+    {subject: 'no subject'}
+  ]
+})
+
+console.log(page.comments[0]._id) // undefined
+```
+
+#### option: minimize
+
+是否最小化文档，默认情况下，在保存至数据库，Mongoose都会检查文档的属性是否为空，如果为空，则会在保存前删除该字段，以保证文档占用的空间总是最小的，但是你也可以禁用该功能，只需要设置 `minimize` 选项为 `false` 即可：
+
+```javascript
+var schema = new Schema({ name: String, inventory: {} });
+var Character = mongoose.model('Character', schema);
+
+// 仅在 `inventory` 不为空的前提下才保存该字段的值
+var frodo = new Character({ name: 'Frodo', inventory: { ringOfPower: 1 }});
+Character.findOne({ name: 'Frodo' }, function(err, character) {
+  console.log(character); // { name: 'Frodo', inventory: { ringOfPower: 1 }}
+});
+
+// 若 `inventory` 为空，则不会被保存
+var sam = new Character({ name: 'Sam', inventory: {}});
+Character.findOne({ name: 'Sam' }, function(err, character) {
+  console.log(character); // { name: 'Sam' }
+});
+```
+
+禁用该功能之后：
+
+```javascript
+var schema = new Schema({ name: String, inventory: {} }, { minimize: false });
+var Character = mongoose.model('Character', schema);
+
+// 不管 `inventory` 是否为空，都将被保存
+var sam = new Character({ name: 'Sam', inventory: {}});
+Character.findOne({ name: 'Sam' }, function(err, character) {
+  console.log(character); // { name: 'Sam', inventory: {}}
+});
+```
+
+#### opiton: read
+
+允许我们设置MongoDB的 `ReadPreferences` 属性：
+
+```javascript
+var schema = new Schema({..}, { read: 'primary' });            // also aliased as 'p'
+var schema = new Schema({..}, { read: 'primaryPreferred' });   // aliased as 'pp'
+var schema = new Schema({..}, { read: 'secondary' });          // aliased as 's'
+var schema = new Schema({..}, { read: 'secondaryPreferred' }); // aliased as 'sp'
+var schema = new Schema({..}, { read: 'nearest' });            // aliased as 'n'
+```
+
+#### option: safe
+
+#### option: shardKey
+
+#### option: strict
+
+默认值为 `true`，它表示是否严格验证属性及其值，如果该项设置为 `true`，则未在 Schema 中定义的字段将不会被保存：
+
+```javascript
+var thingSchema = new Schema({..})
+var Thing = mongoose.model('Thing', thingSchema);
+var thing = new Thing({ iAmNotInTheSchema: true });
+thing.save(); // iAmNotInTheSchema 将不会被保存
+
+// set to false..
+var thingSchema = new Schema({..}, { strict: false });
+var thing = new Thing({ iAmNotInTheSchema: true });
+thing.save(); // iAmNotInTheSchema 将会被保存
+```
+
+该选项同样会影响  `doc.set()` 方法：
+
+```javascript
+var thingSchema = new Schema({..})
+var Thing = mongoose.model('Thing', thingSchema);
+var thing = new Thing;
+thing.set('iAmNotInTheSchema', true);
+thing.save(); // iAmNotInTheSchema 将不会被保存
+```
+
+该项设置可以通过模型实例化方法的第二参数复写：
+
+```javascript
+var Thing = mongoose.model('Thing');
+var thing = new Thing(doc, true);  // enables strict mode
+var thing = new Thing(doc, false); // disables strict mode
+```
+
+`strict` 还可以设置为 `throw`，此时，如果数据格式不匹配时，并不会直接丢掉数据，而是会抛出异常。
+
+- *注意*：如果你没有一个好的理由，请不要设置为 `false`
+- *注意*：在 Mongoose v2 中，该值默认为 `false`
+- *注意*：使用在 Schema 中未定义的字段，在使用 `set` 方法设置时，都会被直接抛弃
+
+```javascript
+var thingSchema = new Schema({..})
+var Thing = mongoose.model('Thing', thingSchema);
+var thing = new Thing;
+thing.iAmNotInTheSchema = true;
+thing.save(); // iAmNotInTheSchema is never saved to the db
+```
+
+#### option: toJSON
+
+控制 `toJSON` 的行为：
+
+```javascript
+var schema = new Schema({ name: String });
+schema.path('name').get(function (v) {
+  return v + ' is my name';
+});
+schema.set('toJSON', { getters: true, virtuals: false });
+var M = mongoose.model('Person', schema);
+var m = new M({ name: 'Max Headroom' });
+console.log(m.toObject()); // { _id: 504e0cd7dd992d9be2f20b6f, name: 'Max Headroom' }
+console.log(m.toJSON()); // { _id: 504e0cd7dd992d9be2f20b6f, name: 'Max Headroom is my name' }
+// since we know toJSON is called whenever a js object is stringified:
+console.log(JSON.stringify(m)); // { "_id": "504e0cd7dd992d9be2f20b6f", "name": "Max Headroom is my name" }
+```
+
+#### opiton: toObject
+
+每一个实例都有一个 `toObject` 方法，用于将实例转换为纯 JavaScript 对象，该配置用于控制 `toObject` 的行为：
+
+```javascript
+var schema = new Schema({ name: String });
+schema.path('name').get(function (v) {
+  return v + ' is my name';
+});
+schema.set('toObject', { getters: true });
+var M = mongoose.model('Person', schema);
+var m = new M({ name: 'Max Headroom' });
+console.log(m); // { _id: 504e0cd7dd992d9be2f20b6f, name: 'Max Headroom is my name' }
+```
+
+#### option: typeKey
+
+默认情况下，当你在定义 Schema 时，`type` 表示的是当前定义的字段是什么类型的数据，但是如果你有一个字段名称就想叫 `type`，为了避免歧义，我们可以修改 **定义当前字段为什么类型的属性名称**，这个时候就可能使用这个选项来配置：
+
+```javascript
+// Mongoose 认为 'loc 是一个字符串'
+var schema = new Schema({ loc: { type: String, coordinates: [Number] } });
+```
+
+但是如果我们的 `geoJSON` 有一个 `type` 属性的话，那可以像下面这样：
+
+```javascript
+var schema = new Schema({
+  // Mongoose interpets this as 'loc is an object with 2 keys, type and coordinates'
+  loc: { type: String, coordinates: [Number] },
+  // Mongoose interprets this as 'name is a String'
+  name: { $type: String }
+}, { typeKey: '$type' }); // A '$type' key means this object is a type declaration
+```
+
+#### option: validateBeforeSave
+
+默认的，Mongoose 会在文档保存前，自动对文档进行数据校验，但是如果你想手工校验数据，那么可以设置此项为 `false`：
+
+```javascript
+var schema = new Schema({ name: String });
+schema.set('validateBeforeSave', false);
+schema.path('name').validate(function (value) {
+    return v != null;
+});
+var M = mongoose.model('Person', schema);
+var m = new M({ name: null });
+m.validate(function(err) {
+    console.log(err); // Will tell you that null is not allowed.
+});
+m.save(); // Succeeds despite being invalid
+```
+
+#### option: versionKey
+
+用于修改文档版本号字段的名称：
+
+```javascript
+var schema = new Schema({ name: 'string' });
+var Thing = mongoose.model('Thing', schema);
+var thing = new Thing({ name: 'mongoose v3' });
+thing.save(); // { __v: 0, name: 'mongoose v3' }
+
+// customized versionKey
+new Schema({..}, { versionKey: '_somethingElse' })
+var Thing = mongoose.model('Thing', schema);
+var thing = new Thing({ name: 'mongoose v3' });
+thing.save(); // { _somethingElse: 0, name: 'mongoose v3' }
+```
+
+该项默认值为 `__v`，如果设置该项的值为 `false`，则会直接关闭文档的版本化功能：
+
+```javascript
+new Schema({..}, { versionKey: false });
+var Thing = mongoose.model('Thing', schema);
+var thing = new Thing({ name: 'no versioning please' });
+thing.save(); // { name: 'no versioning please' }
+```
+
+但是，你要明确的知道你正在做什么，否则，请不要关闭版本管理功能。
+
+#### option: skipVersioning
+
+#### option: timestamps
+
+用于修改 `updatedAt` 与 `createdAt` 的字段名称：
+
+```javascript
+var thingSchema = new Schema({..}, { timestamps: { createdAt: 'created_at' } });
+var Thing = mongoose.model('Thing', thingSchema);
+var thing = new Thing();
+thing.save(); // `created_at` & `updatedAt` will be included
+```
+
+#### option: useNestedStrict
+
+在 Mongoose 4中，`update()` 和 `findOneAndUpdate()` 默认只对顶层Shema进行检测：
+
+```javascript
+var childSchema = new Schema({}, { strict: false });
+var parentSchema = new Schema({ child: childSchema }, { strict: 'throw' });
+var Parent = mongoose.model('Parent', parentSchema);
+Parent.update({}, { 'child.name': 'Luke Skywalker' }, function(error) {
+  // Error because parentSchema has `strict: throw`, even though
+  // `childSchema` has `strict: false`
+});
+
+var update = { 'child.name': 'Luke Skywalker' };
+var opts = { strict: false };
+Parent.update({}, update, opts, function(error) {
+  // This works because passing `strict: false` to `update()` overwrites
+  // the parent schema.
+});
+```
+
+如果设置  `useNestedStrict` 为 `true`，则Mongoose 会使用子Schema的 `strict` 选项进行设置：
+
+```javascript
+var childSchema = new Schema({}, { strict: false });
+var parentSchema = new Schema({ child: childSchema },
+  { strict: 'throw', useNestedStrict: true });
+var Parent = mongoose.model('Parent', parentSchema);
+Parent.update({}, { 'child.name': 'Luke Skywalker' }, function(error) {
+  // Works!
+});
+```
+
+#### option: retainKeyOrder
+
+## 接下来
+
+我们来了解一下 [SchemaTypes](schematypes.md)
